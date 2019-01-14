@@ -12,6 +12,8 @@ using Microsoft.Extensions.Hosting;
 using Serilog;
 using Serilog.Sinks.Elasticsearch;
 using MongoDBTest.Service;
+using MongoDB.Driver;
+using MongoDBTest.Classes;
 
 namespace MongoDBTest
 {
@@ -24,7 +26,17 @@ namespace MongoDBTest
                 {                                       
                     // Register the service
                     services.AddHostedService<MongoDBService>();
-               
+
+                    // Get the config settings
+                    services.Configure<Settings> (options => {
+                        options.ConnectionString = hostContext.Configuration.GetSection("MongoConnection:ConnectionString").Value;
+                        options.Database = hostContext.Configuration.GetSection("MongoConnection:Database").Value;
+                    });
+                    
+                    services.AddSingleton<MongoClient>(serviceProvider => {
+                        var settings = serviceProvider.GetRequiredService<IOptions<Settings>>();
+                        return new MongoClient(settings.Value.ConnectionString);
+                    });                                   
                 })
                 .ConfigureAppConfiguration((hostContext, configApp) => {
                      configApp
@@ -51,7 +63,12 @@ namespace MongoDBTest
                     configLogging.AddSerilog();
                 })
                 .RunConsoleAsync();
-        }    
+        }
+
+        private static object MongoClient()
+        {
+            throw new NotImplementedException();
+        }
     }
 }
 
