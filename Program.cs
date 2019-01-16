@@ -1,7 +1,6 @@
 ﻿﻿using System;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Logging.Console;
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Configuration;
 using System.IO;
@@ -14,6 +13,8 @@ using Serilog.Sinks.Elasticsearch;
 using MongoDBTest.Service;
 using MongoDB.Driver;
 using MongoDBTest.Classes;
+using MongoDBTest.Repository;
+using MongoDBTest.Context;
 
 namespace MongoDBTest
 {
@@ -33,10 +34,15 @@ namespace MongoDBTest
                         options.Database = hostContext.Configuration.GetSection("MongoConnection:Database").Value;
                     });
                     
-                    services.AddSingleton<MongoClient>(serviceProvider => {
+                    // Register Mongo client
+                    services.AddTransient<MongoClient>(serviceProvider => {
                         var settings = serviceProvider.GetRequiredService<IOptions<Settings>>();
                         return new MongoClient(settings.Value.ConnectionString);
-                    });                                   
+                    });                     
+
+                    // Register notes repository and context
+                    services.AddTransient<INoteContext, NoteContext>();
+                    services.AddTransient<INoteRepository, NoteRepository>();
                 })
                 .ConfigureAppConfiguration((hostContext, configApp) => {
                      configApp
@@ -54,12 +60,10 @@ namespace MongoDBTest
                         {
                             AutoRegisterTemplate = true,
                         })
+                        .WriteTo.Console()                    
+                        .WriteTo.File($"{hostContext.Configuration.GetSection("Serilog:LogRoot")?.Value}log-.txt", rollingInterval: RollingInterval.Day)
                     .CreateLogger();
-
-                    // TODO: Add Serilog file logging
-
-                    configLogging.AddConfiguration(hostContext.Configuration.GetSection("Logging"));                        
-                    configLogging.AddConsole();                        
+                                                        
                     configLogging.AddSerilog();
                 })
                 .RunConsoleAsync();

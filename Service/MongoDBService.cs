@@ -1,23 +1,30 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using MongoDB.Driver;
+using MongoDBTest.Model;
+using MongoDBTest.Repository;
 
 namespace MongoDBTest.Service
 {
     public class MongoDBService : IHostedService, IDisposable
     {
         private readonly ILogger<MongoDBService> _logger;
-        private readonly IApplicationLifetime _applicationLifetime;
-        private readonly MongoClient _mongoClient;
+        private readonly IApplicationLifetime _applicationLifetime;        
+        private readonly INoteRepository _noteRepository;
 
-        public MongoDBService(ILogger<MongoDBService> logger, IApplicationLifetime applicationLifetime, MongoClient mongoClient)
+        public MongoDBService(
+            ILogger<MongoDBService> logger, 
+            IApplicationLifetime applicationLifetime, 
+            INoteRepository noteRepository)
         {
             _logger = logger;
             _applicationLifetime = applicationLifetime;
-            _mongoClient = mongoClient;
+            _noteRepository = noteRepository;
         }
 
         #region IDisposable Support
@@ -61,16 +68,53 @@ namespace MongoDBTest.Service
         #endregion
 
         public async Task DoWork()
-        {            
-            for (int i =0; i < 120; i++)
-            {
-                if (_applicationLifetime.ApplicationStopping.IsCancellationRequested) break;
-
-                _logger.LogInformation("{MethodName} {Iteration}", "DoWork", i);
-                await Task.Delay(100);
-            }
+        {   
+            await _noteRepository.RemoveAllNotes();
             
+            await AddWork();
+
+            await ShowWork();
+
+            await ChangeWork();
+            
+            await ShowWork();
+                   
             _applicationLifetime.StopApplication();
+        }
+
+        public async Task AddWork()
+        {
+            for (int i =1; i < 1000; i++)
+            {
+                await _noteRepository.AddNote(new Note() { 
+                    Id = i.ToString(), 
+                    Body = $"Test note {i}", 
+                    CreatedOn = DateTime.Now, 
+                    UpdatedOn = DateTime.Now, 
+                    UserId = i });
+                
+                _logger.LogInformation("{Action} {NoteId}", "Put", i);
+            }
+        }
+
+        public async Task ChangeWork()
+        {
+            for (int i =1; i < 1000; i++)
+            {
+                await _noteRepository.UpdateNoteDocument(i.ToString(), Guid.NewGuid().ToString());
+                _logger.LogInformation("{Action} {NoteId}", "Change", i);
+            }            
+        }
+
+        public async Task ShowWork()
+        {
+            var notes = await _noteRepository.GetAllNotes();
+            _logger.LogInformation("{NoteCount}", notes.Count());
+
+            foreach(var note in notes)
+            {
+                _logger.LogInformation("{Action} {NoteId} {NoteBody}", "Get", note.Id, note.Body);
+            }
         }
 
     }
